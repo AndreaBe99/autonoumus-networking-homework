@@ -24,7 +24,7 @@ class AI2Routing(BASE_routing):
         # self.q_value = [][]  # [N-cells][N-action] : N-actions =  0:send_pkt, 1:keep_pkt, 2:move_to_depot
         # self.q_value = np.array([[0 for i in range(self.action_number)] for j in range(self.cell_number)])
         self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]
-        self.epsilon = 0.001
+        self.epsilon = 0.01
         self.alpha = 0.5
         self.gamma = 0.9
         self.expired_packets = defaultdict(list)
@@ -77,7 +77,7 @@ class AI2Routing(BASE_routing):
                                                            x_pos=self.drone.coords[0], y_pos=self.drone.coords[1])[0])
         # Check if goind to depot is a good action now
         if util.euclidean_distance(self.simulator.depot_coordinates,
-                                   self.drone.coords) < self.drone.depot.communication_range * 1.15:
+                                   self.drone.coords) < self.drone.depot.communication_range * 1.1:
             AI2Routing.move_to_depot += 1
             action = 2
             next_target_coord = self.drone.next_target()

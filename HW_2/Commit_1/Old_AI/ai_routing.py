@@ -65,7 +65,7 @@ class OLDAIRouting(BASE_routing):
     def relay_selection(self, opt_neighbors, pkd):
         # Before the epsilon greedy selection we check if the action 2 can be good
         if util.euclidean_distance(self.simulator.depot_coordinates,
-                                   self.drone.coords) < self.drone.depot.communication_range * 1.25:
+                                   self.drone.coords) < self.drone.depot.communication_range * 1.1:
             OLDAIRouting.move_to_depot += 1
             self.taken_actions[pkd.event_ref] = 2
             return -1
