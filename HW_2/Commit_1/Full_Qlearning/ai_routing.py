@@ -90,11 +90,18 @@ class AIRouting(BASE_routing):
             del self.taken_actions[id_event]
 
             # -- Test -- #
-            reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
-            print(reward, self.simulator.event_duration - delay)
+            distance_from_mission = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.next_target())
+            time_to_mission = distance_from_mission / self.drone.speed
+
+            max_distance = util.euclidean_distance(self.simulator.depot_coordinates, (self.simulator.env_width, self.simulator.env_height))
+            max_time = max_distance / self.drone.speed
+
+            reward = (max_time - time_to_mission) / 100 * mul_reward
+            # ---------- #
+            #reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
             # reward = mul_reward * (outcome + 2)
             # reward = mul_reward
-            # ---------- #
+
             self.q_value[old_cell][action] = self.q_value[old_cell][action] + self.alpha * (
                     reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[old_cell][action])
 
@@ -114,20 +121,9 @@ class AIRouting(BASE_routing):
         # now epsilon greedy selection of the action
         # 1) case epsilon, we take a random action
         if random.uniform(0, 1) < self.epsilon:
-            # If We have no neighbors, we can't chose action 0 (send the packet)
-            # if len(opt_neighbors) == 0:
-            #     action = random.randint(1, 2)
-            #     # action = 1
-            # else:
-            #     action = random.randint(0, 2)
             action = random.randint(0, 2)
-            # 2) case of 1 - epsilon we take the greatest q-value
+        # 2) case of 1 - epsilon we take the greatest q-value
         else:
-            # If We have no neighbors, we can't chose action 0 (send the packet)
-            # if len(opt_neighbors) == 0:
-            #     action = np.argmax(self.q_value[cell_index][1:]) + 1  # +1 beacuse argmax return 0 or 1
-            # else:
-            #     action = np.argmax(self.q_value[cell_index])
             action = np.argmax(self.q_value[cell_index])
 
         # With self.drone.next_target() we know the next cell, i.e. the next state
@@ -178,7 +174,35 @@ class AIRouting(BASE_routing):
             if drone_instance.next_target() == self.simulator.depot_coordinates:
                 drones_to_depot.append(drone_instance)
 
+        mul_reward = self.calculate_reward(drones_to_depot, drone_to_send, cell_index, action)
 
+        self.q_value[cell_index][action] = self.q_value[cell_index][action] + self.alpha * (
+                mul_reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[cell_index][action])
+
+        # Store your current action --- you can add several stuff if needed to take a reward later
+        self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward
+
+        # print(self.drone, self.q_value)
+
+        # return action:
+        # None --> no transmission
+        # -1 --> move to depot
+        # 0, ... , self.ndrones --> send packet to this drone
+        return drone_to_send  # here you should return a drone object!
+
+    def print(self):
+        """
+            This method is called at the end of the simulation, can be usefull to print some
+                metrics about the learning process
+        """
+        print("\n############## PRINT ###############")
+        print("Number of Drone: ", self.simulator.n_drones)
+        print("Send the Packet: ", AIRouting.send_pkt)
+        print("Keep the Packet: ", AIRouting.keep_pkt)
+        print("Move to Depot: ", AIRouting.move_to_depot)
+        print("####################################\n")
+
+    def calculate_reward(self, drones_to_depot, drone_to_send, cell_index, action):
         # We calculate the multiplier for the reward
         mul_reward = 0
 
@@ -211,7 +235,6 @@ class AIRouting(BASE_routing):
                 else:
                     mul_reward = 10
 
-
         # keep the packet
         # Più vicino == Reward più alto perchè ho più probabilità di passare vicino al depot
         elif action == 1:
@@ -239,7 +262,6 @@ class AIRouting(BASE_routing):
                 else:
                     mul_reward = -2
 
-
         # move to depot
         # Più vicino == Reward più alto perchè spreco meno energia
         elif action == 2:
@@ -266,32 +288,7 @@ class AIRouting(BASE_routing):
                     mul_reward = -30
                 else:
                     mul_reward = -40
-
-        self.q_value[cell_index][action] = self.q_value[cell_index][action] + self.alpha * (
-                mul_reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[cell_index][action])
-
-        # Store your current action --- you can add several stuff if needed to take a reward later
-        self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward
-
-        # print(self.drone, self.q_value)
-
-        # return action:
-        # None --> no transmission
-        # -1 --> move to depot
-        # 0, ... , self.ndrones --> send packet to this drone
-        return drone_to_send  # here you should return a drone object!
-
-    def print(self):
-        """
-            This method is called at the end of the simulation, can be usefull to print some
-                metrics about the learning process
-        """
-        print("\n############## PRINT ###############")
-        print("Number of Drone: ", self.simulator.n_drones)
-        print("Send the Packet: ", AIRouting.send_pkt)
-        print("Keep the Packet: ", AIRouting.keep_pkt)
-        print("Move to Depot: ", AIRouting.move_to_depot)
-        print("####################################\n")
+        return mul_reward
 
     def drone_to_depot_routing(self, opt_neighbors, pkd):
         drone_to_send = None
