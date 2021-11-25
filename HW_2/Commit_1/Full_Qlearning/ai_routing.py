@@ -66,6 +66,7 @@ class AIRouting(BASE_routing):
         self.epsilon = 0.001
         self.alpha = 0.5
         self.gamma = 0.9
+        self.to_depot = False
 
     def feedback(self, drone, id_event, delay, outcome):
         """ return a possible feedback, if the destination drone has received the packet """
@@ -84,26 +85,27 @@ class AIRouting(BASE_routing):
         # STORE WHICH ACTION DID YOU TAKE IN THE PAST.
         # do something or train the model (?)
         if id_event in self.taken_actions:
-            action, old_cell, next_target_cell, mul_reward = self.taken_actions[id_event]
+            action, old_cell, next_target_cell, mul_reward, time_to_depot= self.taken_actions[id_event]
             # if self.drone.identifier == 0:
             #     print(self.drone, " evento: ", id_event, " self.teken_actions:", self.taken_actions[id_event])
-            del self.taken_actions[id_event]
+            # del self.taken_actions[id_event]
 
             # -- Test -- #
-            distance_from_mission = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.next_target())
-            time_to_mission = distance_from_mission / self.drone.speed
+            # reward = (max_time - time_to_mission) / 100 * mul_reward
+            
+            # reward = -time_to_mission/100
+            if action == 2:
+                reward = (time_to_depot)/10 * mul_reward 
+            else:
+                reward = mul_reward
+            # print("REWARD", id_event, " action:", action, " reward:", reward, " cella:", old_cell, "next_target:", next_target_cell)
 
-            max_distance = util.euclidean_distance(self.simulator.depot_coordinates, (self.simulator.env_width, self.simulator.env_height))
-            max_time = max_distance / self.drone.speed
-
-            reward = (max_time - time_to_mission) / 100 * mul_reward
             # ---------- #
-            #reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
+            # reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
             # reward = mul_reward * (outcome + 2)
             # reward = mul_reward
-
-            self.q_value[old_cell][action] = self.q_value[old_cell][action] + self.alpha * (
-                    reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[old_cell][action])
+            self.to_depot = False
+            self.q_value[old_cell][action] = self.q_value[old_cell][action] + self.alpha * (reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[old_cell][action])
 
     def relay_selection(self, opt_neighbors, pkd):
         """ arg min score  -> geographical approach, take the drone closest to the depot """
@@ -180,8 +182,18 @@ class AIRouting(BASE_routing):
                 mul_reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[cell_index][action])
 
         # Store your current action --- you can add several stuff if needed to take a reward later
-        self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward
+        time_to_depot = 0
+        
+        distance_from_depot = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.coords)
+        time_to_depot = distance_from_depot / self.drone.speed
+        
+        # Questo perchè ho visto che lo sovrascriveva e nel feedback non veniva mai stampata l'azione 2
+        if action == 2:
+            self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
+            self.to_depot = True
 
+        if self.to_depot == False:
+            self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
         # print(self.drone, self.q_value)
 
         # return action:
@@ -216,24 +228,24 @@ class AIRouting(BASE_routing):
                 mul_reward = 10
             elif cell_index < 4:
                 if modul == 1 or modul == 2:
-                    mul_reward = -2
+                    mul_reward = 1
                 else:
                     mul_reward = 2
             elif cell_index < 8:
                 if modul == 1 or modul == 2:
                     mul_reward = 2
                 else:
-                    mul_reward = 5
+                    mul_reward = 3
             elif cell_index < 12:
                 if modul == 1 or modul == 2:
-                    mul_reward = 5
+                    mul_reward = 3
                 else:
-                    mul_reward = 8
+                    mul_reward = 4
             elif cell_index < 16:
                 if modul == 1 or modul == 2:
-                    mul_reward = 8
+                    mul_reward = 4
                 else:
-                    mul_reward = 10
+                    mul_reward = 5
 
         # keep the packet
         # Più vicino == Reward più alto perchè ho più probabilità di passare vicino al depot
@@ -243,51 +255,52 @@ class AIRouting(BASE_routing):
                 mul_reward = -2
             elif cell_index < 4:
                 if modul == 1 or modul == 2:
-                    mul_reward = 10
+                    mul_reward = 5
                 else:
-                    mul_reward = 8
+                    mul_reward = 4
             elif cell_index < 8:
                 if modul == 1 or modul == 2:
-                    mul_reward = 8
+                    mul_reward = 4
                 else:
-                    mul_reward = 5
+                    mul_reward = 3
             elif cell_index < 12:
                 if modul == 1 or modul == 2:
-                    mul_reward = 5
+                    mul_reward = 3
                 else:
                     mul_reward = 2
             elif cell_index < 16:
                 if modul == 1 or modul == 2:
                     mul_reward = 2
                 else:
-                    mul_reward = -2
+                    mul_reward = 1
 
         # move to depot
         # Più vicino == Reward più alto perchè spreco meno energia
         elif action == 2:
             # Se avevo un vicino che gia andava al depot darò un reward molto basso
             if len(drones_to_depot) != 0:
-                mul_reward = -20
+                mul_reward = -5
             elif cell_index < 4:
                 if modul == 1 or modul == 2:
-                    mul_reward = 2
+                    mul_reward = - 1
                 else:
-                    mul_reward = -1
+                    mul_reward = -2
             elif cell_index < 8:
                 if modul == 1 or modul == 2:
-                    mul_reward = -10
+                    mul_reward = -2
                 else:
-                    mul_reward = -20
+                    mul_reward = -3
             elif cell_index < 12:
                 if modul == 1 or modul == 2:
-                    mul_reward = -20
+                    mul_reward = -3
                 else:
-                    mul_reward = -30
+                    mul_reward = -4
             elif cell_index < 16:
                 if modul == 1 or modul == 2:
-                    mul_reward = -30
+                    mul_reward = -4
                 else:
-                    mul_reward = -40
+                    mul_reward = -5
+        mul_reward = mul_reward * self.simulator.n_drones
         return mul_reward
 
     def drone_to_depot_routing(self, opt_neighbors, pkd):
