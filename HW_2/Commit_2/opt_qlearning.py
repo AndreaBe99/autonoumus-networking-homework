@@ -122,7 +122,7 @@ class OPTQRouting(BASE_routing):
                                                                      y_pos=next_target_coord[1])[0])
 
         # send packet
-        else:
+        elif action == 0:
             OPTQRouting.send_pkt += 1
             # drone_to_send = self.drone_to_depot_routing(opt_neighbors, pkd)
             # drone_to_send = GeoMoveRouting.relay_selection(self, opt_neighbors, pkd)
@@ -180,7 +180,7 @@ class OPTQRouting(BASE_routing):
 
         # keep the packet
         # Più vicino == Reward più alto perchè ho più probabilità di passare vicino al depot
-        else:
+        elif action == 0:
             # Se avevo un vicino che gia andava al depot darò un reward molto basso
             if len(drones_to_depot) != 0:
                 mul_reward = -2
