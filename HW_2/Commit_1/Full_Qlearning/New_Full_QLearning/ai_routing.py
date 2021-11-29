@@ -166,7 +166,7 @@ class AIRouting(BASE_routing):
                                                                      x_pos=next_target_coord[0],
                                                                      y_pos=next_target_coord[1])[0])
 
-        mul_reward = self.calculate_reward(drone_to_send, cell_index, action)
+        mul_reward = self.calculate_reward(opt_neighbors, drone_to_send, cell_index, action)
 
         self.q_value[cell_index][action] = self.q_value[cell_index][action] + self.alpha * (
                 mul_reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[cell_index][action])
@@ -192,7 +192,7 @@ class AIRouting(BASE_routing):
         # 0, ... , self.ndrones --> send packet to this drone
         return drone_to_send  # here you should return a drone object!
 
-    def calculate_reward(self, drone_to_send, cell_index, action):
+    def calculate_reward(self, opt_neighbors, drone_to_send, cell_index, action):
         # We search if there is a drone that goes to the depot
         drones_to_depot = []
         for hpk, drone_instance in opt_neighbors:
