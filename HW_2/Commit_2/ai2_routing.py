@@ -8,7 +8,7 @@ from src.routing_algorithms.BASE_routing import BASE_routing
 import random
 
 
-class OPTQlearning(BASE_routing):
+class AI2Routing(BASE_routing):
     keep_pkt = 0
     send_pkt = 0
     move_to_depot = 0
@@ -59,11 +59,11 @@ class OPTQlearning(BASE_routing):
         self.taken_actions = {}  # id event : (old_action)
 
         self.cell_number = pow(int(self.simulator.env_width / self.simulator.prob_size_cell), 2)
-        self.action_number = 3  # we consider only the first 2 actions
+        self.action_number = 2  # we consider only the first 2 actions
         # self.q_value = [][]  # [N-cells][N-action] : N-actions =  0:send_pkt, 1:keep_pkt, 2:move_to_depot
         # self.q_value = np.array([[0 for i in range(self.action_number)] for j in range(self.cell_number)])
-        self.q_value = [[10 for i in range(self.action_number)] for j in range(self.cell_number)]
-        self.epsilon = 0
+        self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]
+        self.epsilon = 0.001
         self.alpha = 0.7
         self.gamma = 0.6
         self.to_depot = False
@@ -95,7 +95,7 @@ class OPTQlearning(BASE_routing):
 
             # reward = -time_to_mission/100
             if action == 2:
-                reward = (time_to_depot) / 10 * mul_reward
+                return None
             else:
                 # reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
                 reward = mul_reward
@@ -118,13 +118,18 @@ class OPTQlearning(BASE_routing):
         cell_index = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                            width_area=self.simulator.env_width,
                                                            x_pos=self.drone.coords[0], y_pos=self.drone.coords[1])[0])
-
+        if util.euclidean_distance(self.simulator.depot_coordinates,
+                                   self.drone.coords) < self.drone.depot.communication_range * 1.2:
+            AI2Routing.move_to_depot += 1
+            # save only action 2 because it's not necessary for q_value
+            self.taken_actions[pkd.event_ref] = 2, None, None, 0, 0
+            return -1
         action = None
 
         # now epsilon greedy selection of the action
         # 1) case epsilon, we take a random action
         if random.uniform(0, 1) < self.epsilon:
-            action = random.randint(0, 2)
+            action = random.randint(0, 1)
         # 2) case of 1 - epsilon we take the greatest q-value
         else:
             action = np.argmax(self.q_value[cell_index])
@@ -134,19 +139,9 @@ class OPTQlearning(BASE_routing):
         next_target_cell = None
         drone_to_send = None
 
-        # -1 --> move to depot
-        if action == 2:
-            OPTQlearning.move_to_depot += 1
-            drone_to_send = -1
-            # Cell of depot
-            next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
-                                                                     width_area=self.simulator.env_width,
-                                                                     x_pos=self.simulator.depot_coordinates[0],
-                                                                     y_pos=self.simulator.depot_coordinates[1])[0])
-
         # None --> no transmission, keep the packet
         if action == 1:
-            OPTQlearning.keep_pkt += 1
+            AI2Routing.keep_pkt += 1
             drone_to_send = None
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                                      width_area=self.simulator.env_width,
@@ -155,14 +150,14 @@ class OPTQlearning(BASE_routing):
 
         # send packet
         elif action == 0:
-            OPTQlearning.send_pkt += 1
+            AI2Routing.send_pkt += 1
             # drone_to_send = self.drone_to_depot_routing(opt_neighbors, pkd)
             # drone_to_send = GeoMoveRouting.relay_selection(self, opt_neighbors, pkd)
             drone_to_send = GeoRouting.relay_selection(self, opt_neighbors, pkd)
             if drone_to_send is None:
                 action = 1
-                OPTQlearning.send_pkt -= 1
-                OPTQlearning.keep_pkt += 1
+                AI2Routing.send_pkt -= 1
+                AI2Routing.keep_pkt += 1
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                                      width_area=self.simulator.env_width,
                                                                      x_pos=next_target_coord[0],
@@ -189,13 +184,7 @@ class OPTQlearning(BASE_routing):
         distance_from_depot = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.coords)
         time_to_depot = distance_from_depot / self.drone.speed
 
-        # Questo perchè ho visto che lo sovrascriveva e nel feedback non veniva mai stampata l'azione 2
-        if action == 2:
-            self.taken_actions[
-                pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
-            self.to_depot = True
-
-        if self.to_depot == False:
+        if not self.to_depot:
             self.taken_actions[
                 pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
         # print(self.drone, self.q_value)
@@ -205,6 +194,18 @@ class OPTQlearning(BASE_routing):
         # -1 --> move to depot
         # 0, ... , self.ndrones --> send packet to this drone
         return drone_to_send  # here you should return a drone object!
+
+    def print(self):
+        """
+            This method is called at the end of the simulation, can be usefull to print some
+                metrics about the learning process
+        """
+        print("\n############## PRINT ###############")
+        print("Number of Drone: ", self.simulator.n_drones)
+        print("Send the Packet: ", AI2Routing.send_pkt)
+        print("Keep the Packet: ", AI2Routing.keep_pkt)
+        print("Move to Depot: ", AI2Routing.move_to_depot)
+        print("####################################\n")
 
     def calculate_reward(self, drones_to_depot, drone_to_send, cell_index, action):
         # We calculate the multiplier for the reward
@@ -219,7 +220,7 @@ class OPTQlearning(BASE_routing):
         # Più lontano == Reward più alto perchè ho meno probabilità di passare vicino al depot
         if action == 0:
             if drone_to_send in drones_to_depot:
-                mul_reward = 5
+                mul_reward = 10
             else:
                 # Ciclo per il numero di celle in colonna
                 for row_number in range(num_cell_in_row):
@@ -235,7 +236,7 @@ class OPTQlearning(BASE_routing):
         elif action == 1:
             # Se avevo un vicino che gia andava al depot darò un reward molto basso
             if len(drones_to_depot) != 0:
-                mul_reward = -5
+                mul_reward = -2
             else:
                 # Ciclo per il numero di celle in colonna
                 for row_number in range(num_cell_in_row):
@@ -246,34 +247,7 @@ class OPTQlearning(BASE_routing):
                         mul_reward = (num_cell_in_row - row_number) * abs(depot_cell * (row_number + 1) - cell_index)
                         break
         # move to depot
-        # Più vicino == Reward più alto perchè spreco meno energia
-        elif action == 2:
-            # Se avevo un vicino che gia andava al depot darò un reward molto basso
-            if len(drones_to_depot) != 0:
-                mul_reward = -5
-            else:
-                # Ciclo per il numero di celle in colonna
-                for row_number in range(num_cell_in_row):
-                    # in che riga mi trovo
-                    if cell_index < (row_number + 1) * num_cell_in_row:
-                        # moltiplico la riga per il valore assoluto della differenza tra la cella del depot e quella del drone
-                        # Più mi allontano più basso sarà il reward
-                        mul_reward = - (num_cell_in_row - row_number) * abs(depot_cell * (row_number + 1) - cell_index)
-                        mul_reward = mul_reward * self.simulator.n_drones
-                        break
         return mul_reward
-
-    def print(self):
-        """
-            This method is called at the end of the simulation, can be usefull to print some
-                metrics about the learning process
-        """
-        print("\n############## PRINT ###############")
-        print("Number of Drone: ", self.simulator.n_drones)
-        print("Send the Packet: ", OPTQlearning.send_pkt)
-        print("Keep the Packet: ", OPTQlearning.keep_pkt)
-        print("Move to Depot: ", OPTQlearning.move_to_depot)
-        print("####################################\n")
 
     def calculate_reward_old(self, drones_to_depot, drone_to_send, cell_index, action):
         # We calculate the multiplier for the reward
@@ -336,33 +310,6 @@ class OPTQlearning(BASE_routing):
                 else:
                     mul_reward = 1
 
-        # move to depot
-        # Più vicino == Reward più alto perchè spreco meno energia
-        elif action == 2:
-            # Se avevo un vicino che gia andava al depot darò un reward molto basso
-            if len(drones_to_depot) != 0:
-                mul_reward = -5
-            elif cell_index < 4:
-                if modul == 1 or modul == 2:
-                    mul_reward = - 1
-                else:
-                    mul_reward = -2
-            elif cell_index < 8:
-                if modul == 1 or modul == 2:
-                    mul_reward = -2
-                else:
-                    mul_reward = -3
-            elif cell_index < 12:
-                if modul == 1 or modul == 2:
-                    mul_reward = -3
-                else:
-                    mul_reward = -4
-            elif cell_index < 16:
-                if modul == 1 or modul == 2:
-                    mul_reward = -4
-                else:
-                    mul_reward = -5
-            mul_reward = mul_reward * self.simulator.n_drones
         return mul_reward
 
     def drone_to_depot_routing(self, opt_neighbors, pkd):
