@@ -97,6 +97,7 @@ class AIRouting(BASE_routing):
             if action == 2:
                 reward = (time_to_depot)/10 * mul_reward 
             else:
+                # reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
                 reward = mul_reward
             # print("REWARD", id_event, " action:", action, " reward:", reward, " cella:", old_cell, "next_target:", next_target_cell)
 
@@ -246,6 +247,7 @@ class AIRouting(BASE_routing):
                     mul_reward = 4
                 else:
                     mul_reward = 5
+            mul_reward = mul_reward * self.simulator.n_drones
 
         # keep the packet
         # Più vicino == Reward più alto perchè ho più probabilità di passare vicino al depot
@@ -300,7 +302,7 @@ class AIRouting(BASE_routing):
                     mul_reward = -4
                 else:
                     mul_reward = -5
-        mul_reward = mul_reward * self.simulator.n_drones
+            mul_reward = mul_reward * self.simulator.n_drones
         return mul_reward
 
     def drone_to_depot_routing(self, opt_neighbors, pkd):
