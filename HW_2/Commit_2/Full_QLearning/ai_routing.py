@@ -312,10 +312,10 @@ class AIRouting(BASE_routing):
         self.taken_actions = {}  # id event : (old_action)
 
         self.cell_number = pow(int(self.simulator.env_width / self.simulator.prob_size_cell), 2)
-        self.action_number = 3  # we consider only the first 2 actions
-        # self.q_value = [][]  # [N-cells][N-action] : N-actions =  0:send_pkt, 1:keep_pkt, 2:move_to_depot
-        # self.q_value = np.array([[0 for i in range(self.action_number)] for j in range(self.cell_number)])
-        self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]
+        # N-actions =  0:send_pkt, 1:keep_pkt, 2:move_to_depot
+        self.action_number = 3
+        # [N-cells][N-action] 
+        self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]    
         self.epsilon = 0.002
         self.alpha = 0.7
         self.gamma = 0.6
@@ -332,32 +332,14 @@ class AIRouting(BASE_routing):
             print("Drone: ", self.drone.identifier, "---------- just received a feedback:",
                   "Drone:", drone, " - id-event:", id_event, " - delay:", delay, " - outcome:", outcome)
 
-        # Be aware, due to network errors we can give the same event to multiple drones and receive multiple feedback
-        # for the same packet!!
-        # NOTE: reward or update using the old action!!
-        # STORE WHICH ACTION DID YOU TAKE IN THE PAST.
-        # do something or train the model (?)
         if id_event in self.taken_actions:
             action, old_cell, next_target_cell, mul_reward, time_to_depot= self.taken_actions[id_event]
-            # if self.drone.identifier == 0:
-            #     print(self.drone, " evento: ", id_event, " self.teken_actions:", self.taken_actions[id_event])
-            # del self.taken_actions[id_event]
 
-            # -- Test -- #
-            # reward = (max_time - time_to_mission) / 100 * mul_reward
-            
-            # reward = -time_to_mission/100
             if action == 2:
                 reward = (time_to_depot)/10 * mul_reward 
             else:
-                # reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
                 reward = mul_reward
-            # print("REWARD", id_event, " action:", action, " reward:", reward, " cella:", old_cell, "next_target:", next_target_cell)
-
-            # ---------- #
-            # reward = ((self.simulator.event_duration - delay) / 1000) * mul_reward
-            # reward = mul_reward * (outcome + 2)
-            # reward = mul_reward
+          
             self.to_depot = False
             self.q_value[old_cell][action] = self.q_value[old_cell][action] + self.alpha * (reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[old_cell][action])
 
@@ -365,13 +347,10 @@ class AIRouting(BASE_routing):
         """ arg min score  -> geographical approach, take the drone closest to the depot """
         # Notice all the drones have different speed, and radio performance!!
         # you know the speed, not the radio performance.
-        # self.drone.speed
-        # Only if you need --> several features:
+
         cell_index = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                            width_area=self.simulator.env_width,
                                                            x_pos=self.drone.coords[0], y_pos=self.drone.coords[1])[0])
-
-
         action = None
 
         # now epsilon greedy selection of the action
@@ -419,31 +398,25 @@ class AIRouting(BASE_routing):
                                                                      x_pos=next_target_coord[0],
                                                                      y_pos=next_target_coord[1])[0])
 
+        # Function used to calculate the reward through constants
         mul_reward = self.calculate_reward(opt_neighbors, drone_to_send, cell_index, action)
 
         self.q_value[cell_index][action] = self.q_value[cell_index][action] + self.alpha * (
                 mul_reward + self.gamma * max(self.q_value[next_target_cell]) - self.q_value[cell_index][action])
 
-        # Store your current action --- you can add several stuff if needed to take a reward later
         time_to_depot = 0
         
-        distance_from_depot = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.coords)
-        time_to_depot = distance_from_depot / self.drone.speed
-        
-        # Questo perchè ho visto che lo sovrascriveva e nel feedback non veniva mai stampata l'azione 2
+        # To avoid overwriting action 2 en route to the depot
         if action == 2:
+            distance_from_depot = util.euclidean_distance(self.simulator.depot_coordinates, self.drone.coords)
+            time_to_depot = distance_from_depot / self.drone.speed
             self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
             self.to_depot = True
 
         if self.to_depot == False:
             self.taken_actions[pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
-        # print(self.drone, self.q_value)
 
-        # return action:
-        # None --> no transmission
-        # -1 --> move to depot
-        # 0, ... , self.ndrones --> send packet to this drone
-        return drone_to_send  # here you should return a drone object!
+        return drone_to_send  
 
     def calculate_reward(self, opt_neighbors, drone_to_send, cell_index, action):
         # We search if there is a drone that goes to the depot
@@ -454,39 +427,49 @@ class AIRouting(BASE_routing):
 
         # We calculate the multiplier for the reward
         mul_reward = 0
-        # Numero di celle su una riga    
+        # Number of cells in a row 
         num_cell_in_row = int(self.simulator.env_width / self.simulator.prob_size_cell)
+        # Depot Cell
         depot_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                            width_area=self.simulator.env_width,
                                                            x_pos=self.simulator.depot_coordinates[0], y_pos=self.simulator.depot_coordinates[1])[0])
-
+        # Loop on the number of lines
         for row_number in range(num_cell_in_row):
-            # in che riga mi trovo
+            # It defines which line I am in
             if cell_index < (row_number+1)*num_cell_in_row:
+                # Send Packet
                 if action == 0:
+                    # If there is a drone headed to the depot among the neighbors
                     if drone_to_send in drones_to_depot:
                         mul_reward = 5
                     else:
+                        # We calculate the reward based on the distance from the depot cell
+                        # The farther I go, the higher the reward
                         mul_reward = (row_number+1) * abs(depot_cell*(row_number+1) - cell_index)
+                        # The reward of this action is influenced by the number of drones
                         mul_reward = mul_reward * self.simulator.n_drones
                         break
+                # Keep Packet
                 elif action == 1:
-                    # Se avevo un vicino che gia andava al depot darò un reward molto basso
+                    # If there isn't a drone headed to the depot among the neighbors
                     if len(drones_to_depot) != 0:
                         mul_reward = -5
                     else:
-                        # moltiplico la riga per il valore assoluto della differenza tra la cella del depot e quella del drone
-                        # Più mi allontano più basso sarà il reward
+                        # We calculate the reward based on the distance from the depot cell
+                        # The further I go, the lower the reward will be
                         mul_reward = (num_cell_in_row - row_number) * abs(depot_cell*(row_number+1) - cell_index)
                         break
+                # Move to Depot
                 elif action == 2:
-                    # Se avevo un vicino che gia andava al depot darò un reward molto basso
+                    # If there isn't a drone headed to the depot among the neighbors
                     if len(drones_to_depot) != 0:
                         mul_reward = -5
                     else:
-                        # moltiplico la riga per il valore assoluto della differenza tra la cella del depot e quella del drone
-                        # Più mi allontano più basso sarà il reward
+                        # We calculate the reward based on the distance from the depot cell
+                        # The further I go, the lower the reward will be
                         mul_reward = - (num_cell_in_row - row_number) * abs(depot_cell*(row_number+1) - cell_index)
+                        # The reward of this action is influenced by the number of drones
+                        # because as the drones increase, the number of events at the depot increases, so you don't need to do the move_to_ depot action
                         mul_reward = mul_reward * self.simulator.n_drones
                         break
 
