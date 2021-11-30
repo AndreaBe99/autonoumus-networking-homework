@@ -13,45 +13,6 @@ class AIRouting(BASE_routing):
     send_pkt = 0
     move_to_depot = 0
 
-    """
-    Il buon funzionamento dell'algoritmo credo dipenda molto dalla posizione in cui effettuo l'azione e che tipo di 
-    azione. Per questo credo che le celle siano un ottimo modo per strutturare l'algoritmo.
-
-    Ogni cella ha un array di 3 valori corrispondente alle azioni.
-    - Azione 2:
-        - Più sono lontano dal depot più l'azione 2  deve essere negativa.
-        - Più sono vicino al depot più l'azione 2  deve essere positiva.
-
-    - Azione 1 (keep_pkt):
-        - Più sono lontano dal depot più l'azione 1 deve essere positiva.
-        - Più sono vicino al depot più l'azione 2 deve essere negativa.
-            Questo perchè se sono vicino conviene tentare di consegnare il pacchetto
-        - Se tra i vicini ho un drone diretto al depot e scelgo l'azione 1 devo avere un reward molto negativo.
-
-    - Azione 0 (send_pkt):
-        - Invio esclusivamente a droni diretti verso il depot, altrimenti faccio l'azione 1, questo perchè
-            inviare pacchetti inutilmente aumenta la probabilità di errori.
-        - Da capire come la distanza dal depot influenza quest azione
-
-    I '+' stanno a simboleggiare un alto reward, i '-' invece un basso reward. Ovviamente la disposizione dipende dal 
-    tipo di azione come descritto precedentemente.
-
-    Un esempio per l'azione 2:
-     ____ ____ ____ ____
-    | -- |  - |  - | -- |
-    |____|____|____|____|
-     ____ ____ ____ ____
-    |  - | +- | +- |  - |
-    |____|____|____|____|
-     ____ ____ ____ ____
-    | +- |  + |  + | +- |
-    |____|____|____|____|
-     ____ ____ ____ ____
-    |  + | ++ | ++ |  + |
-    |____|____|____|____|
-
-    """
-
     def __init__(self, drone, simulator):
         BASE_routing.__init__(self, drone, simulator)
         # random generator
