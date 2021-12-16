@@ -1,0 +1,4 @@
+[submodule "HW_3/DroNETworkSimulator"]
+	path = HW_3/DroNETworkSimulator
+	url = https://github.com/Andrea94c/DroNETworkSimulator.git
+	branch = hmw3
