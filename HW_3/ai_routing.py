@@ -189,7 +189,7 @@ class AIRouting(BASE_routing):
                         # We calculate the reward based on the distance from the cell to the depot
                         # If the drone is in a cell near the depot, the reward will be higher
                         # because the drone wastes less energy to return to the mission
-                        mul_reward = - (num_cell_in_row - row_number) * abs(
+                        mul_reward = - (row_number) * abs(
                             depot_1_cell * (row_number + 1) - cell_index)
                         # The reward is affected by the number of drones, in fact, with a greater number of drones there
                         # will be a greater number of events at the depot
@@ -203,8 +203,7 @@ class AIRouting(BASE_routing):
                         # We calculate the reward based on the distance from the cell to the depot
                         # If the drone is in a cell near the depot, the reward will be higher
                         # because the drone wastes less energy to return to the mission
-                        mul_reward = - (num_cell_in_row - row_number) * abs(
-                            depot_2_cell * (row_number + 1) - cell_index)
+                        mul_reward = - (num_cell_in_row - row_number) * abs( depot_2_cell - (cell_index + (num_cell_in_row * (num_cell_in_row - row_number - 1))))
                         # The reward is affected by the number of drones, in fact, with a greater number of drones there
                         # will be a greater number of events at the depot
                         mul_reward = mul_reward * self.simulator.n_drones
