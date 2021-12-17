@@ -166,7 +166,10 @@ class AIRouting(BASE_routing):
                     else:
                         # If the drone is in a cell near the depot, the reward will be lower
                         # We calculate the reward based on the distance from the cell to the depot
-                        mul_reward = (row_number + 1) * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
+                        if row_number == 0 or row_number == 3:
+                            mul_reward = 1 * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
+                        else:
+                            mul_reward = 2  * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
                         # The reward is affected by the number of drones, in fact, with a greater number of drones there
                         # will be a greater number of events at the depot
                         mul_reward = mul_reward * self.simulator.n_drones
@@ -178,8 +181,13 @@ class AIRouting(BASE_routing):
                     else:
                         # I calculate the reward based on the distance from the cell to the depot
                         # If the drone is in a cell near the depot, the reward will be higher
-                        mul_reward = (num_cell_in_row - row_number) * abs(
-                            (num_cell_in_row / 2) * (row_number + 1) - cell_index)
+                        if row_number == 0 or row_number == 3:
+                            mul_reward = 2 * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
+                        else:
+                            mul_reward = 1  * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
+                        
+                        # Forse Questo è giusto
+                        #mul_reward = abs(num_cell_in_row / 2 - row_number + 1) * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
                         break
                 elif action == 2:
                     # If I had a neighbor who already went to the depot I will give a very low reward
