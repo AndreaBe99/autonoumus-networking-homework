@@ -133,6 +133,8 @@ class AIRouting(BASE_routing):
         if self.to_depot == False:
             self.taken_actions[
                 pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
+    
+        return drone_to_send
 
     def calculate_reward(self, opt_neighbors, drone_to_send, cell_index, action):
         # We search if there is a drone that goes to the depot
