@@ -1,5 +1,6 @@
 import numpy as np
 
+from src.routing_algorithms.georouting_w_move import GeoMoveRouting
 from src.routing_algorithms.georouting import GeoRouting
 from src.utilities import config
 from src.utilities import utilities as util
@@ -7,7 +8,7 @@ from src.routing_algorithms.BASE_routing import BASE_routing
 import random
 
 
-class AIRouting(BASE_routing):
+class OPTQlearning(BASE_routing):
     keep_pkt = 0
     send_pkt = 0
     move_to_depot_1 = 0
@@ -21,8 +22,8 @@ class AIRouting(BASE_routing):
 
         self.cell_number = pow(int(self.simulator.env_width / self.simulator.prob_size_cell), 2)
         self.action_number = 4  # we consider 4 actions: 0:send_pkt, 1:keep_pkt, 2:move_to_depot --> 1, 3:move_to_depot --> 2
-        self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]  # [N-cells][N-action]
-        self.epsilon = 0.0014 / self.simulator.n_drones
+        self.q_value = [[10 for i in range(self.action_number)] for j in range(self.cell_number)]  # [N-cells][N-action]
+        self.epsilon = 0
         self.alpha = 0.7
         self.gamma = 0.6
         self.to_depot = False
@@ -56,6 +57,8 @@ class AIRouting(BASE_routing):
         cell_index = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                            width_area=self.simulator.env_width,
                                                            x_pos=self.drone.coords[0], y_pos=self.drone.coords[1])[0])
+        action = None
+
         # now epsilon greedy selection of the action
         # 1) case epsilon, we take a random action
         if random.uniform(0, 1) < self.epsilon:
@@ -71,7 +74,7 @@ class AIRouting(BASE_routing):
 
         # -2 --> move to depot
         if action == 3:
-            AIRouting.move_to_depot_2 += 1
+            OPTQlearning.move_to_depot_2 += 1
             drone_to_send = -2
             # Cell of depot
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
@@ -81,7 +84,7 @@ class AIRouting(BASE_routing):
 
         # -1 --> move to depot
         if action == 2:
-            AIRouting.move_to_depot_1 += 1
+            OPTQlearning.move_to_depot_1 += 1
             drone_to_send = -1
             # Cell of depot
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
@@ -91,7 +94,7 @@ class AIRouting(BASE_routing):
 
         # None --> no transmission, keep the packet
         if action == 1:
-            AIRouting.keep_pkt += 1
+            OPTQlearning.keep_pkt += 1
             drone_to_send = None
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                                      width_area=self.simulator.env_width,
@@ -100,13 +103,13 @@ class AIRouting(BASE_routing):
 
         # send packet
         elif action == 0:
-            AIRouting.send_pkt += 1
+            OPTQlearning.send_pkt += 1
             drone_to_send = GeoRouting.relay_selection(self, opt_neighbors, pkd)
             # If there are no neighbors
             if drone_to_send is None:
                 action = 1
-                AIRouting.send_pkt -= 1
-                AIRouting.keep_pkt += 1
+                OPTQlearning.send_pkt -= 1
+                OPTQlearning.keep_pkt += 1
             next_target_cell = int(util.TraversedCells.coord_to_cell(size_cell=self.simulator.prob_size_cell,
                                                                      width_area=self.simulator.env_width,
                                                                      x_pos=next_target_coord[0],
@@ -127,7 +130,7 @@ class AIRouting(BASE_routing):
                 pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
             self.to_depot = True
 
-        if not self.to_depot:
+        if self.to_depot == False:
             self.taken_actions[
                 pkd.event_ref.identifier] = action, cell_index, next_target_cell, mul_reward, time_to_depot
 
@@ -188,6 +191,9 @@ class AIRouting(BASE_routing):
                         else:
                             mul_reward = (row_number + 1) * abs(
                                 cell_index - (depot_2_cell - (num_cell_in_row * (num_cell_in_row - row_number - 1))))
+
+                        # Forse Questo è giusto
+                        # mul_reward = abs(num_cell_in_row / 2 - row_number + 1) * abs((num_cell_in_row / 2) * (row_number + 1) - cell_index)
                         break
                 elif action == 2:
                     # If I had a neighbor who already went to the depot I will give a very low reward
@@ -227,8 +233,8 @@ class AIRouting(BASE_routing):
         """
         print("\n############## PRINT ###############")
         print("Number of Drone: ", self.simulator.n_drones)
-        print("Send the Packet: ", AIRouting.send_pkt)
-        print("Keep the Packet: ", AIRouting.keep_pkt)
-        print("Move to Depot 1: ", AIRouting.move_to_depot_1)
-        print("Move to Depot 2: ", AIRouting.move_to_depot_2)
+        print("Send the Packet: ", OPTQlearning.send_pkt)
+        print("Keep the Packet: ", OPTQlearning.keep_pkt)
+        print("Move to Depot 1: ", OPTQlearning.move_to_depot_1)
+        print("Move to Depot 2: ", OPTQlearning.move_to_depot_2)
         print("####################################\n")
