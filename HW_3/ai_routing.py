@@ -23,8 +23,8 @@ class AIRouting(BASE_routing):
         self.action_number = 4  # we consider 4 actions: 0:send_pkt, 1:keep_pkt, 2:move_to_depot --> 1, 3:move_to_depot --> 2
         self.q_value = [[0 for i in range(self.action_number)] for j in range(self.cell_number)]  # [N-cells][N-action]
         self.epsilon = 0.0014 / self.simulator.n_drones
-        self.alpha = 0.7
-        self.gamma = 0.6
+        self.alpha = 0.3
+        self.gamma = 0.5
         self.to_depot = False
 
     def feedback(self, drone, id_event, delay, outcome, depot_index=None):
